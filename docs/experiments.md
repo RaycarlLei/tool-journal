@@ -1,5 +1,25 @@
 # Crash experiment
 
+## Recorded v0.1.0 run
+
+Source: `3eb96ded1b807d92f259ef7ff6d26504cc4bd849`. The local run and the
+[Ubuntu/Windows CI runs](https://github.com/RaycarlLei/tool-journal/actions/runs/34153866046)
+produced the following counts on Node.js 24.15.0:
+
+| Strategy | Cases | Cases with duplicate effects | Indeterminate | Confirmed |
+|---|---:|---:|---:|---:|
+| Naive retry | 15 | 10 | 0 | 15 |
+| Completion checkpoint | 15 | 5 | 0 | 15 |
+| Journal + downstream idempotency | 15 | 0 | 0 | 15 |
+| Journal + manual recovery | 15 | 0 | 10 | 5 |
+
+The baseline's "confirmed" count does not imply correctness: a run can return a
+receipt after causing a duplicate. The manual strategy has five cases that stop
+before any effect and five that stop after one effect; neither group is guessed
+to be successful. [Download the local raw matrix](https://github.com/RaycarlLei/tool-journal/releases/download/v0.1.0/crash-matrix.json).
+
+## Reproduce
+
 Run `npm run benchmark`. It executes four strategies at three kill points, repeated
 five times: 60 cases and 120 child-process launches. Each case has fresh journal
 and downstream SQLite files. Every pause is acknowledged over IPC, then the parent

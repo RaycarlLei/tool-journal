@@ -31,6 +31,8 @@ ledger, then starts another process to recover. It compares four approaches:
 This is a correctness experiment with an injected logical clock, not a throughput
 benchmark or a claim about any model's performance. [Protocol and raw results](docs/experiments.md).
 
+Engineering note: [The receipt that did not arrive](docs/lost-receipt.md).
+
 ## Use the journal
 
 ```ts
