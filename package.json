@@ -1,0 +1,22 @@
+{
+  "name": "@raycarllei/tool-journal",
+  "version": "0.1.0",
+  "description": "Durable tool execution with lease fencing, explicit uncertainty, and reproducible crash tests.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=24.15.0" },
+  "exports": { ".": { "types": "./dist/src/index.d.ts", "import": "./dist/src/index.js" } },
+  "files": ["dist/src", "README.md", "LICENSE", "docs"],
+  "repository": { "type": "git", "url": "https://github.com/RaycarlLei/tool-journal.git" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "demo": "npm run build && node dist/examples/crash-recovery.js",
+    "benchmark": "npm run build && node dist/benchmarks/run.js",
+    "test:mutations": "npm run build && node scripts/mutations.mjs",
+    "check:public": "node scripts/check-public.mjs",
+    "check": "npm test && npm run test:mutations && npm run check:public",
+    "prepack": "npm run build"
+  },
+  "devDependencies": { "@types/node": "24.10.1", "fast-check": "4.3.0", "typescript": "5.9.3" }
+}
