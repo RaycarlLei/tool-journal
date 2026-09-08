@@ -55,7 +55,12 @@ finally { store.close(); }
 `);
   run(['consumer.mjs']);
   writeFileSync(join(directory, 'consumer.mts'), `
-import { Journal, MemoryStore, type Intent, type Begin } from '@raycarllei/tool-journal';
+import { Journal, MemoryStore, type Store, type Intent, type Begin } from '@raycarllei/tool-journal';
+const memory = new MemoryStore();
+const snapshot: ReturnType<MemoryStore['read']> = memory.read('missing');
+const transactionOnly: Store = { transact: memory.transact.bind(memory) };
+new Journal(transactionOnly);
+void snapshot;
 const intent: Intent = { scope: 'types', key: 'one', tool: 'append', input: null, recovery: 'manual' };
 const journal = new Journal(new MemoryStore());
 const result: Begin = journal.begin(intent);

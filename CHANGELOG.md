@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0
+
+- Replay completed receipts through an optional validated Store snapshot. SQLite
+  readers no longer need the writer lock for that path; all execution grants
+  still read and commit inside the existing write transaction.
+- Bound SQLite values before the native wrapper returns them to JavaScript,
+  including legacy migration records and identities. Preserve valid UTF-16
+  databases and the precise UTF-8 receipt limit. Reject noninteger schema metadata.
+- Reuse per-connection read/write statements and expose an independent runtime
+  experiment for operation latency, contention, event-loop delay and file growth.
+- Document lock errors, worker isolation, backup freshness and safe recovery.
+  The SQLite busy timeout is configuration, not a total wall-clock deadline.
+- Keep storage schema v2. Existing v0.2 records need no migration; custom stores
+  without the optional read method retain their transactional behavior.
+
 ## 0.2.0
 
 - Require an explicit finite retry admission window for idempotent operations.

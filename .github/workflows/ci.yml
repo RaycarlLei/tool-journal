@@ -34,9 +34,16 @@ jobs:
       - run: npm run demo
         working-directory: integrations/langgraph
       - run: npm run benchmark
+      - run: npm run benchmark:runtime
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: crash-matrix-${{ matrix.os }}-node-${{ matrix.node }}
           path: artifacts/crash-matrix.json
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-cost-${{ matrix.os }}-node-${{ matrix.node }}
+          path: artifacts/runtime-cost.json
           if-no-files-found: error
           retention-days: 30

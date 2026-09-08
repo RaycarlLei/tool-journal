@@ -8,6 +8,19 @@ blocks the event loop while waiting for a lock; applications needing high reques
 concurrency should isolate it in a worker or implement a different Store. A Store
 must provide atomic synchronous read/modify/write and rollback on an exception.
 
+## Read committed receipts without reserving the writer
+
+A completed receipt does not authorize another execution. In v0.3, stores can
+provide an atomic validated read snapshot so this path need not acquire the writer
+lock. The decision linearizes at that read; all pending, absent and indeterminate
+snapshots return to the write transaction and are read again. We do not upgrade a
+read transaction or rerun a user callback automatically after lock contention.
+Stores without the optional method keep their original transactional behavior.
+
+The SQLite query checks the stored type and byte length before returning a value
+to JavaScript. Keeping guards and payload in one SELECT also prevents a writer
+from enlarging the row between a size preflight and a later autocommit read.
+
 ## A journal instead of an agent framework
 
 Retry identity and uncertain side effects are useful beyond chat agents. The core
