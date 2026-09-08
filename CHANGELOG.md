@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.2
+
+- Add an independently installed LangGraph integration using the official SQLite
+  checkpointer and the library's packaged public API. Process-kill regressions
+  distinguish graph checkpoints, journal receipts and downstream effects.
+- Check the integration on all supported CI platforms and Node versions while
+  keeping framework dependencies outside the library's runtime manifest.
+- Scan tracked and untracked public candidates, including force-staged ignored
+  files, without traversing installed integration dependencies.
+- Declare the Node ambient type environment explicitly and avoid duplicate
+  branch-push checks when a pull request is already checked.
+
 ## 0.1.1
 
 - Reject malformed persisted recovery policies and noncanonical receipts before

@@ -1,5 +1,10 @@
 # Contributing
 
+Changes affecting integration behavior also need the independently installed
+[LangGraph example](integrations/langgraph): run its `npm ci`, `npm test` and
+`npm run demo` after installing the root project. The example's native dependencies
+belong to its own lockfile; do not move them into the library's runtime manifest.
+
 Run `npm ci` and `npm run check` on Node.js 24.15+. Include a reproducing sequence
 for changes to lease or recovery behavior. For concurrency bugs, a process test
 with an explicit rendezvous is more useful than a timing-dependent sleep.
