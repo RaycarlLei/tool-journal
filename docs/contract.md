@@ -88,6 +88,10 @@ adapter has neither process coordination nor crash durability. Records with inva
 field types, unknown fields, impossible state combinations or noncanonical results
 throw; they never become a fresh journal. This validates structure, not authenticity:
 someone who can rewrite the database can also forge a structurally valid receipt.
+An existing journal with a missing table, missing schema version or multiple
+version rows is rejected. Opening it does not reconstruct lost state as an empty
+journal. A new database path still creates a new journal; protect the database
+file and restore a consistent backup if it is lost.
 
 Both adapters reject nested transactions and asynchronous callbacks. The callback
 must return a `Change` synchronously. Rejection prevents a returned change from being

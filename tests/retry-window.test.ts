@@ -275,6 +275,29 @@ test('v1 migration preserves receipts and treats unknown retry retention conserv
   });
 });
 
+for (const [name, damage] of [
+  ['missing records table', 'DROP TABLE tool_journal'],
+  ['missing version table', 'DROP TABLE journal_meta'],
+  ['missing version row', 'DELETE FROM journal_meta'],
+  ['ambiguous version rows', 'INSERT INTO journal_meta VALUES (1), (1)'],
+] as const) {
+  test(`opening a journal rejects ${name} without reconstructing lost state`, () => {
+    const completed = legacyEntry('existing-receipt', 'idempotent', 'completed');
+    withLegacyDatabase([completed], (path, raw) => {
+      raw.exec(damage);
+      const schema = raw.prepare("SELECT name, sql FROM sqlite_master WHERE name IN ('journal_meta', 'tool_journal') ORDER BY name");
+      const before = schema.all();
+      assert.throws(() => new SqliteStore(path), /Unsupported journal schema/);
+      assert.deepEqual(schema.all(), before);
+      if (name !== 'missing records table') {
+        assert.equal(raw.prepare('SELECT entry FROM tool_journal WHERE id = ?').get(completed.id)!.entry, JSON.stringify(completed));
+      }
+      if (name === 'missing version row') assert.equal(raw.prepare('SELECT count(*) AS count FROM journal_meta').get()!.count, 0);
+      if (name === 'ambiguous version rows') assert.equal(raw.prepare('SELECT count(*) AS count FROM journal_meta').get()!.count, 3);
+    });
+  });
+}
+
 test('a malformed v1 row rolls back every migrated row, schema version, and trigger', () => {
   const good = legacyEntry('good', 'idempotent');
   const broken = legacyEntry('broken', 'manual');
