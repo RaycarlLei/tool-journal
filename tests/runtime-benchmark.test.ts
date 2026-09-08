@@ -61,7 +61,7 @@ test('malformed worker failures reject through cleanup without an uncaught IPC e
   try {
     for (const message of malformed) {
       const worker = fixture.worker(['-e',
-        `process.on('message', () => {}); process.send(${JSON.stringify(message)});`]);
+        "process.on('message', () => {}); process.send(JSON.parse(process.argv[1]));", JSON.stringify(message)]);
       await assert.rejects(worker.receive('ready'), /Unexpected runtime worker failure message/);
       await worker.closed;
     }
