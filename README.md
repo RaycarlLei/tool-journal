@@ -19,19 +19,38 @@ npm run demo
 ```
 
 The demo kills a real child process after it commits to a separate synthetic
-ledger, then starts another process to recover. It compares four approaches:
+ledger, then starts another process to recover. It compares five approaches:
 
 | Approach | Recovery after the effect, before recording completion |
 |---|---|
 | Retry without a journal | Repeats the effect |
 | Completion checkpoint | Repeats the effect |
+| Downstream idempotency alone | Retrieves the original receipt through another call |
 | Journal + downstream idempotency | Retrieves the original receipt |
 | Journal + manual recovery | Stops with `indeterminate` |
+
+Downstream idempotency prevents duplicate effects in both idempotent strategies.
+The journal additionally coordinates live execution, detects changed intent and
+replays completed receipts without contacting the service. The experiment measures
+service calls and effects separately so those benefits are not conflated.
 
 This is a correctness experiment with an injected logical clock, not a throughput
 benchmark or a claim about any model's performance. [Protocol and raw results](docs/experiments.md).
 
 Engineering note: [The receipt that did not arrive](docs/lost-receipt.md).
+
+For the same failure over a real loopback HTTP connection, run `npm run demo:http`.
+The synthetic service commits to its own SQLite database and closes the socket
+before returning a receipt. Idempotent recovery makes two HTTP calls for one
+effect, then replays locally; manual recovery keeps the outcome indeterminate
+after one call. [Integration code](examples/http/client.ts) handles bounded
+responses and an absolute request deadline without hidden transport retries.
+The [HTTP tests](tests/http-recovery.test.ts) also reopen both databases and
+reject receipts that arrive after lease expiry. This is a local example, not
+a hosted service or a production network adapter. Client and service run in one
+process; HTTP tests reopen stores normally, while the separate process tests
+exercise forced termination. Network deadlines do not include synchronous
+SQLite lock waits.
 
 ## Use the journal
 
@@ -96,16 +115,22 @@ Read the [failure contract](docs/contract.md) before integrating.
 1. [State transitions](src/journal.ts): acquisition, expiry, uncertainty, settlement.
 2. [Storage transaction](src/sqlite.ts): local durability and serialized claims.
 3. [Process tests](tests/process.test.ts): kill points and concurrent contenders.
-4. [Independent model](tests/model.test.ts): 1,000 seeded operation histories.
+4. [Independent model](tests/model.test.ts): 500 memory and 40 SQLite histories,
+   plus exact-boundary walks through renewal, settlement, conflicts and reopening.
+5. [Storage integrity](tests/integrity.test.ts): malformed records, failed rollback,
+   bounded JSON and invalid transaction callbacks.
 
 ```sh
-npm run check           # tests, targeted mutations, public-tree checks
-npm run benchmark       # 60 crash/recovery scenarios; writes artifacts/crash-matrix.json
+npm run check           # tests, targeted mutations, public-tree and package checks
+npm run benchmark       # 100 controlled cases; writes artifacts/crash-matrix.json
 npm pack               # compiled library + docs; no fixtures or local databases
 ```
 
-The targeted mutation check removes four safeguards, one at a time, and requires
-an assertion failure for each. It is not a whole-project mutation score.
+The targeted mutation check removes seven safeguards, one at a time, and requires
+an assertion failure for each. It is not a whole-project mutation score. The package
+check installs the real archive offline in a fresh project, exercises SQLite reopen
+through the public exports, and compiles a TypeScript consumer. CI runs on Linux,
+Windows and macOS with the minimum supported Node 24 release and Node 26.
 
 ## Project scope
 

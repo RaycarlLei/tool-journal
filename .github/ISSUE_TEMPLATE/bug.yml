@@ -1,0 +1,28 @@
+name: Reproducible bug
+description: Report unexpected journal behavior with a synthetic reproduction.
+body:
+  - type: markdown
+    attributes:
+      value: For security concerns, use private vulnerability reporting. Do not attach real databases, receipts, credentials or customer traces.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+      description: Include the recovery policy and the sequence of calls or failures.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal synthetic reproduction
+      description: Provide runnable code, or a failing test with its seed and path.
+      render: typescript
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Package version or commit, Node version, OS, storage adapter and filesystem type.
+    validations:
+      required: true

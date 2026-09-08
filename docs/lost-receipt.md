@@ -37,6 +37,12 @@ idempotency. A local journal alone cannot provide this property for an arbitrary
 remote service. An API whose idempotency keys expire sooner than retries can occur
 would also violate the contract.
 
+The current experiment includes downstream idempotency without a journal, using
+exactly the same key. It also avoids duplicate effects. The journal adds a durable
+local receipt, live-lease coordination and changed-intent detection; after completion
+is recorded, replay no longer needs another service call. The original v0.1.0 matrix
+did not isolate those responsibilities and is retained as a historical result.
+
 ## What an old executor can still do
 
 A lease can expire while a process is paused. A new process then takes over with
@@ -63,8 +69,8 @@ no reset button that silently turns uncertainty into permission to execute again
 
 ## What the experiment establishes
 
-The [recorded matrix](experiments.md) covers three chosen kill points on local
-SQLite files. It demonstrates the implemented protocol at those boundaries.
+The [experiment](experiments.md) covers three chosen kill points and one response-loss
+boundary on local SQLite files. It demonstrates the implemented protocol there.
 The seeded model tests explore additional operation sequences, and the targeted
 mutations verify that selected safeguards are actually tested. None of these
 establish a production failure rate, power-loss durability or correctness for an
