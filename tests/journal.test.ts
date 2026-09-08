@@ -7,7 +7,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { Journal, MemoryStore, SqliteStore, type Intent, type Lease } from '../src/index.js';
 import { canonical } from '../src/json.js';
 
-const intent: Intent = { scope: 'synthetic', key: 'action-1', tool: 'append', input: { units: 7 }, recovery: 'idempotent' };
+const action = { scope: 'synthetic', key: 'action-1', tool: 'append', input: { units: 7 } };
+const intent: Intent = { ...action, recovery: 'idempotent', retryForMs: 1_000 };
 function acquire(journal: Journal, value = intent): Lease {
   const result = journal.begin(value, 10);
   assert.equal(result.kind, 'acquired');
@@ -26,7 +27,7 @@ for (const adapter of ['memory', 'sqlite'] as const) {
       assert.equal(journal.begin(intent).kind, 'busy');
       assert.equal(journal.begin({ ...intent, input: { units: 8 } }).kind, 'conflict');
       assert.equal(journal.begin({ ...intent, tool: 'delete' }).kind, 'conflict');
-      assert.equal(journal.begin({ ...intent, recovery: 'manual' }).kind, 'conflict');
+      assert.equal(journal.begin({ ...action, recovery: 'manual' }).kind, 'conflict');
       now = 110;
       assert.equal(journal.complete(first, null).kind, 'stale');
       assert.equal(journal.renew(first), false);
@@ -52,7 +53,7 @@ for (const adapter of ['memory', 'sqlite'] as const) {
 test('manual recovery blocks retries until an independently verified settlement', () => {
   let now = 0;
   const j = new Journal(new MemoryStore(), () => now);
-  const value: Intent = { ...intent, recovery: 'manual' };
+  const value: Intent = { ...action, recovery: 'manual' };
   const lease = acquire(j, value);
   assert.equal(j.settle(value, { receipt: 1 }), 'not_indeterminate');
   now = 10;
@@ -119,7 +120,7 @@ test('SQLite rollback, reopen, and corruption fail closed', () => {
     store.close(); store = new SqliteStore(path);
     assert.equal(new Journal(store).begin(intent).kind, 'replay');
     const raw = new DatabaseSync(path);
-    raw.prepare('UPDATE tool_journal SET entry = ?').run('{"version":9}');
+    raw.prepare('UPDATE tool_journal SET entry = ?').run('{"version":2}');
     raw.close();
     assert.throws(() => new Journal(store).begin(intent), /Corrupt/);
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }

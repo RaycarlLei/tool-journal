@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+- Require an explicit finite retry admission window for idempotent operations.
+  Persist its first-acquisition anchor; retries, renewal and reopening cannot reset
+  the cutoff. Expired ownership after admission closes becomes indeterminate.
+- Keep receipt completion and lease renewal independent of retry admission, and
+  preserve completed receipt replay after the cutoff.
+- Migrate v1 SQLite records atomically without inventing historical timestamps.
+  Unknown legacy windows cannot authorize a new retry. Reject old-client writes.
+- Document the API/storage migration and test delayed provider arrival as a limit
+  of client-side authorization, not an exactly-once guarantee.
+
 ## 0.1.2
 
 - Add an independently installed LangGraph integration using the official SQLite

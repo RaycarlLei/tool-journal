@@ -2,11 +2,19 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    # Major tooling/runtime baselines receive explicit compatibility review.
+    # allow.update-types does not suppress security updates.
+    allow:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-minor', 'version-update:semver-patch']
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
   - package-ecosystem: npm
     directory: /integrations/langgraph
+    allow:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-minor', 'version-update:semver-patch']
     schedule:
       interval: weekly
     open-pull-requests-limit: 3

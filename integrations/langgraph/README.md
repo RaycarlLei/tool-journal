@@ -29,7 +29,7 @@ labels tool-journal as **extraneous**. Run `npm run prepare` after changing the
 root library, or after a command that prunes unlisted packages. No archive or
 registry publication is needed in this example's Git history.
 
-`@langchain/langgraph` is pinned to 1.4.14, `@langchain/core` to 1.1.48,
+`@langchain/langgraph` is pinned to 1.4.14, `@langchain/core` to 1.2.9,
 `@langchain/langgraph-checkpoint-sqlite` to 1.0.4, and its native `better-sqlite3`
 dependency to 12.10.0. The native dependency supports Node 24 and 26 in its
 published engine range. Installation may require a compiler when a matching
@@ -71,6 +71,13 @@ Changing the units or recovery contract under that identity produces `conflict`
 before another HTTP request. A different intended operation needs a different
 application key. The graph thread ID remains LangGraph's state identity, not an
 HTTP idempotency key.
+
+The synthetic service retains its keys indefinitely. The graph still assigns
+idempotent operations a fixed 60,000 ms retry admission window from their first
+journal acquisition. Another graph thread cannot reset it. An expired lease after
+that window becomes indeterminate; completed receipts continue to replay. This
+cutoff does not bound when an already-authorized HTTP request reaches the service.
+See [retry admission and v0.1 database migration](../../docs/retry-admission.md).
 
 ## What the example and tests demonstrate
 

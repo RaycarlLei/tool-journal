@@ -29,7 +29,7 @@ const output = {
   protocol: 2, createdAt: new Date().toISOString(), commit, workingTreeDirty,
   environment: { node: process.version, platform: platform(), arch: arch(), osRelease: release() },
   lockSha256: createHash('sha256').update(readFileSync('package-lock.json')).digest('hex'),
-  clock: 'Injected logical milliseconds; acquire=100, recover=111, lease=10. The three pause phases kill real processes; response-loss exits without delivering a committed receipt.',
+  clock: 'Injected logical milliseconds; acquire=100, recover=111, lease=10, idempotent retry admission=1000 from first acquisition. The three pause phases kill real processes; response-loss exits without delivering a committed receipt.',
   downstream: 'Both idempotent strategies use the identical stable action key and a durable deduplicating synthetic service. Calls count accepted requests, including deduplicated requests; effects count service commits.',
   repetitions: 5, scenarios: rows.length, rows,
 };

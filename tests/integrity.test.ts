@@ -48,7 +48,7 @@ const malformedFields: Record<string, Record<string, unknown>> = {
   'array state that string-coerces to pending': { state: ['pending'] },
   'array fingerprint': { fingerprint: ['a'.repeat(64)] },
   'unknown field': { unexpected: true },
-  'indeterminate idempotent action': { recovery: 'idempotent', state: 'indeterminate' },
+  'idempotent action without a retry window': { recovery: 'idempotent', state: 'indeterminate' },
   'pending action with a receipt': { result: 'null' },
   'completed action without a receipt': { state: 'completed', result: null },
   'string epoch': { epoch: '1' },

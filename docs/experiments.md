@@ -28,7 +28,9 @@ acknowledged over IPC before the parent terminates the child and starts recovery
 Kill points: before the effect, after committing the effect, and after recording
 completion. A fourth case drops the response after the effect, reports the transport
 failure, and starts a new recovery process. The clock is logical: acquisition at 100 ms, lease expiry at 110 ms,
-recovery at 111 ms. No actual ten-millisecond timing claim is made. POSIX uses
+recovery at 111 ms. In v0.2, journal idempotent operations use a 1,000 ms admission
+window anchored at that first acquisition; this matrix recovers inside the window.
+The synthetic provider retains keys indefinitely. No actual ten-millisecond timing claim is made. POSIX uses
 SIGKILL; Node forcefully terminates the process on Windows.
 
 The baselines are small implementations included in [worker.ts](../tests/fixtures/worker.ts):
@@ -55,11 +57,16 @@ run. CI runs the same matrix and uploads its report. Historical protocol 1 resul
 above remain tied to the original release and must not be relabeled as protocol 2.
 
 The independent model uses seed 20260908 for 500 MemoryStore histories and 40 SQLite
-histories of up to 100 commands. Each adapter also runs a 23-command exact-boundary
-walk, and coverage assertions require 26 observable protocol paths. Commands cover
+histories of up to 100 commands. Each adapter also runs 23-command and 21-command
+exact-boundary walks, and coverage assertions require 31 observable protocol paths. Commands cover
 renewal, settlement, input/result mutation, old handles, multiple namespaces,
-rollback and connection reopening. fast-check shrinks failing random sequences.
+rollback, fixed retry admission windows and connection reopening. fast-check shrinks failing random sequences.
 This is bounded model-based testing, not an exhaustive proof of all interleavings.
+
+Separate [retry admission tests](../tests/retry-window.test.ts) exercise a finite
+synthetic provider retention period: post-cutoff acquisition is refused, while an
+already-authorized request can still arrive after key eviction and duplicate an
+effect. These are separate tests, not additional cases folded into the 100-run matrix.
 
 ## HTTP receipt loss
 

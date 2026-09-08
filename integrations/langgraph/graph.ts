@@ -1,6 +1,6 @@
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
-import { Journal, SqliteStore, type Begin, type Completion, type Json } from '@raycarllei/tool-journal';
+import { Journal, SqliteStore, type Begin, type Completion, type Intent, type Json } from '@raycarllei/tool-journal';
 import { z } from 'zod';
 import { requestReceipt } from '#synthetic-http';
 import { join } from 'node:path';
@@ -54,7 +54,10 @@ export function openRuntime(directory: string, servicePort: number, options: Run
       const action = ActionSchema.parse(state.action);
       // Logical operation identity comes from the application. LangGraph thread,
       // checkpoint, task, and retry IDs never become a new downstream action key.
-      const intent = { scope: action.scope, key: action.key, tool: 'synthetic-http-append', input: { units: action.units }, recovery: action.recovery };
+      // The synthetic provider retains keys indefinitely. This example still
+      // bounds new retry authorization to one minute from the first acquisition.
+      const intent: Intent = { scope: action.scope, key: action.key, tool: 'synthetic-http-append', input: { units: action.units },
+        ...(action.recovery === 'manual' ? { recovery: action.recovery } : { recovery: action.recovery, retryForMs: 60_000 }) };
       const begun = journal.begin(intent, leaseMs);
       if (begun.kind !== 'acquired') return { outcome: begun };
 

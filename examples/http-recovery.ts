@@ -17,7 +17,8 @@ try {
       store = new SqliteStore(join(dir, `${recovery}-journal.sqlite`));
       let now = 100;
       const journal = new Journal(store, () => now);
-      const intent: Intent = { scope: 'http-demo', key: 'append-seven', tool: 'append', input: { units: 7 }, recovery };
+      const intent: Intent = { scope: 'http-demo', key: 'append-seven', tool: 'append', input: { units: 7 },
+        ...(recovery === 'manual' ? { recovery } : { recovery, retryForMs: 60_000 }) };
       service.dropNextReply(recovery);
       const first = await appendWithJournal(journal, service.port, intent, 10);
       assert.equal(first.kind, 'unconfirmed');

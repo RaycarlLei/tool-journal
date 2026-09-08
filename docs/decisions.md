@@ -28,8 +28,17 @@ than execution. Manual recovery cannot distinguish a lost receipt from a tool th
 never started. We accept this false-positive uncertainty. Automatically treating
 it as failure would permit duplicate side effects.
 
+## Bound retry admission without discarding a live receipt
+
+Provider key retention is finite. v0.2 records a fixed admission cutoff, while
+keeping lease ownership separate so an active executor can record its receipt
+after new retries have been barred. We cannot turn that cutoff into a network
+arrival guarantee. v1 records have no first-acquisition timestamp; migration must
+preserve that absence rather than grant them a new window at upgrade time.
+
 ## No expired-entry cleanup yet
 
 Deleting a completed record makes its key executable again. Cleanup therefore
 needs an explicit maximum retry horizon and a downstream retention agreement.
-v0.1 retains entries indefinitely rather than hiding this policy in a TTL.
+v0.2 retains entries even after admission closes. Deleting the record would also
+delete its cutoff and permit a new first acquisition under the same key.

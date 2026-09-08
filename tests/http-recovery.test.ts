@@ -10,7 +10,7 @@ import { appendWithJournal, requestReceipt, ReceiptUnavailable, MAX_RESPONSE_BYT
 import { startSyntheticService, MAX_REQUEST_BYTES, type SyntheticService } from '../examples/http/service.js';
 
 const key = 'a'.repeat(64);
-const intent: Intent = { scope: 'http-test', key: 'append-seven', tool: 'append', input: { units: 7 }, recovery: 'idempotent' };
+const operation = { scope: 'http-test', key: 'append-seven', tool: 'append', input: { units: 7 } };
 
 for (const recovery of ['idempotent', 'manual'] as const) {
   test(`HTTP ${recovery}: lost receipt survives reopening both independent stores`, async () => {
@@ -23,7 +23,7 @@ for (const recovery of ['idempotent', 'manual'] as const) {
       service = await startSyntheticService(downstreamPath);
       store = new SqliteStore(journalPath);
       let journal = new Journal(store, () => now);
-      const action = { ...intent, recovery };
+      const action: Intent = { ...operation, ...(recovery === 'manual' ? { recovery } : { recovery, retryForMs: 60_000 }) };
       service.dropNextReply(recovery);
       assert.deepEqual(await appendWithJournal(journal, service.port, action, 10), { kind: 'unconfirmed', reason: 'transport' });
       const committed = service.snapshot();
@@ -230,7 +230,7 @@ test('a receipt arriving after lease expiry is returned as stale, never complete
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end('{"receipt":1,"units":7}');
     });
-    const action: Intent = { ...intent, recovery: 'manual' };
+    const action: Intent = { ...operation, recovery: 'manual' };
     assert.deepEqual(await appendWithJournal(journal, service.port, action, 10), { kind: 'stale', result: { receipt: 1, units: 7 } });
     assert.deepEqual(await appendWithJournal(journal, service.port, action, 10), { kind: 'indeterminate' });
     assert.equal(service.calls(), 1);

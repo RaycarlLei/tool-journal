@@ -11,6 +11,7 @@ import { Journal, MemoryStore, SqliteStore, type Intent, type Lease, type Store 
 interface Account {
   phase: 'running' | 'uncertain' | 'finished';
   deadline: number;
+  stopStartingAt: number | null;
   owner: number;
   grants: number[];
   receipt: number | undefined;
@@ -33,7 +34,9 @@ function intent(slot: number, reverse = false): Intent {
   const [scope, key] = identities[slot]!;
   const request = { units: slot + 1, enabled: true };
   const input = reverse ? { request, tags: [slot, null] } : { tags: [slot, null], request };
-  return { scope, key, tool: 'append', input, recovery: slot % 2 === 0 ? 'manual' : 'idempotent' };
+  const common = { scope, key, tool: 'append', input };
+  return slot % 2 === 0 ? { ...common, recovery: 'manual' }
+    : { ...common, recovery: 'idempotent', retryForMs: 8 + slot };
 }
 function receipt(value: number, reverse = false) {
   const details = { labels: ['synthetic', value], verified: true };
@@ -47,7 +50,7 @@ type Action =
   | ({ op: 'complete'; holder: 'first' | 'current'; value: number; reverse: boolean } & Target)
   | ({ op: 'renew'; holder: 'first' | 'current'; duration: number } & Target)
   | ({ op: 'settle'; value: number; reverse: boolean } & Target)
-  | ({ op: 'conflict'; field: 'input' | 'tool' | 'recovery' } & Target)
+  | ({ op: 'conflict'; field: 'input' | 'tool' | 'recovery' | 'retryForMs' } & Target)
   | ({ op: 'abort' } & Target)
   | { op: 'reopen'; client: number };
 
@@ -56,7 +59,9 @@ class ContractCommand implements fc.Command<Model, Runtime> {
 
   check(model: Readonly<Model>): boolean {
     switch (this.action.op) {
-      case 'complete': case 'renew': case 'conflict': case 'abort':
+      case 'conflict':
+        return model.accounts.has(this.action.slot) && (this.action.field !== 'retryForMs' || this.action.slot % 2 === 1);
+      case 'complete': case 'renew': case 'abort':
         return model.accounts.has(this.action.slot);
       default: return true;
     }
@@ -84,8 +89,10 @@ class ContractCommand implements fc.Command<Model, Runtime> {
             assert.deepEqual(actual, { kind: 'indeterminate' });
           } else if (account && model.now < account.deadline) {
             assert.deepEqual(actual, { kind: 'busy', leaseUntil: account.deadline });
-          } else if (account && value.recovery === 'manual') {
+            if (account.stopStartingAt !== null && model.now >= account.stopStartingAt) real.observed.add('begin:busy-after-admission');
+          } else if (account && (value.recovery === 'manual' || model.now >= account.stopStartingAt!)) {
             assert.deepEqual(actual, { kind: 'indeterminate' });
+            if (value.recovery === 'idempotent') real.observed.add('begin:window-elapsed');
             account.phase = 'uncertain';
           } else {
             assert.equal(actual.kind, 'acquired');
@@ -97,9 +104,12 @@ class ContractCommand implements fc.Command<Model, Runtime> {
               assert.notEqual(actual.lease.executor, previous.executor);
             }
             const grant = model.nextGrant++;
+            const stopStartingAt = account?.stopStartingAt ?? (value.recovery === 'manual' ? null : model.now + value.retryForMs);
+            assert.equal(actual.retryStartBefore, stopStartingAt);
             real.leases.set(grant, actual.lease);
             model.accounts.set(action.slot, {
               phase: 'running', deadline: model.now + action.duration,
+              stopStartingAt,
               owner: grant, grants: [...(account?.grants ?? []), grant], receipt: undefined,
             });
           }
@@ -121,6 +131,7 @@ class ContractCommand implements fc.Command<Model, Runtime> {
           real.observed.add(`complete:${expected}`);
           if (!owns) real.observed.add('complete:retired');
           if (account!.phase === 'running' && model.now === account!.deadline) real.observed.add('complete:at-expiry');
+          if (canCommit && account!.stopStartingAt !== null && model.now >= account!.stopStartingAt) real.observed.add('complete:after-admission');
           if (canCommit) { account!.phase = 'finished'; account!.receipt = action.value; }
           value.details.labels.push('caller mutation');
           break;
@@ -132,6 +143,7 @@ class ContractCommand implements fc.Command<Model, Runtime> {
           real.observed.add(`renew:${allowed}`);
           if (allowed) real.observed.add(model.now + action.duration < account!.deadline ? 'renew:nonshortening' : 'renew:extended');
           if (account!.phase === 'running' && model.now === account!.deadline) real.observed.add('renew:at-expiry');
+          if (allowed && account!.stopStartingAt !== null && model.now >= account!.stopStartingAt) real.observed.add('renew:after-admission');
           if (allowed) account!.deadline = Math.max(account!.deadline, model.now + action.duration);
           break;
         }
@@ -148,10 +160,18 @@ class ContractCommand implements fc.Command<Model, Runtime> {
           break;
         }
         case 'conflict': {
-          const changed = intent(action.slot);
+          let changed = intent(action.slot);
           if (action.field === 'input') changed.input = { units: -1 };
           if (action.field === 'tool') changed.tool = 'different-tool';
-          if (action.field === 'recovery') changed.recovery = changed.recovery === 'manual' ? 'idempotent' : 'manual';
+          if (action.field === 'recovery') {
+            const common = { scope: changed.scope, key: changed.key, tool: changed.tool, input: changed.input };
+            changed = changed.recovery === 'manual' ? { ...common, recovery: 'idempotent', retryForMs: 10 }
+              : { ...common, recovery: 'manual' };
+          }
+          if (action.field === 'retryForMs' && changed.recovery === 'idempotent') {
+            changed.retryForMs += 1;
+            real.observed.add('conflict:retry-window');
+          }
           assert.deepEqual(journal.begin(changed), { kind: 'conflict' });
           assert.equal(journal.settle(changed, receipt(0)), 'conflict');
           break;
@@ -208,7 +228,7 @@ const commands = [
   fc.record({ op: fc.constant('complete' as const), slot, client, holder, value, reverse }),
   fc.record({ op: fc.constant('renew' as const), slot, client, holder, duration }),
   fc.record({ op: fc.constant('settle' as const), slot, client, value, reverse }),
-  fc.record({ op: fc.constant('conflict' as const), slot, client, field: fc.constantFrom('input' as const, 'tool' as const, 'recovery' as const) }),
+  fc.record({ op: fc.constant('conflict' as const), slot, client, field: fc.constantFrom('input' as const, 'tool' as const, 'recovery' as const, 'retryForMs' as const) }),
   fc.record({ op: fc.constant('abort' as const), slot, client }),
   fc.record({ op: fc.constant('reopen' as const), client }),
 ].map(arbitrary => arbitrary.map(action => new ContractCommand(action)));
@@ -275,6 +295,30 @@ for (const adapter of ['memory', 'sqlite'] as const) {
     };
     // Cover exact deadlines explicitly; random histories explore interleavings.
     run(boundary.map(action => new ContractCommand(action)));
+    const admissionBoundary: Action[] = [
+      { op: 'begin', slot: 1, client: 0, duration: 3, reverse: false },
+      { op: 'begin', slot: 3, client: 1, duration: 20, reverse: false },
+      { op: 'advance', elapsed: 3 },
+      { op: 'begin', slot: 1, client: 1, duration: 3, reverse: true },
+      { op: 'advance', elapsed: 3 },
+      { op: 'begin', slot: 1, client: 0, duration: 2, reverse: false },
+      { op: 'reopen', client: 0 },
+      { op: 'advance', elapsed: 2 },
+      { op: 'begin', slot: 1, client: 0, duration: 1, reverse: true },
+      { op: 'conflict', slot: 1, client: 1, field: 'retryForMs' },
+      { op: 'advance', elapsed: 1 },
+      { op: 'begin', slot: 1, client: 1, duration: 3, reverse: false },
+      { op: 'settle', slot: 1, client: 0, value: 1, reverse: false },
+      { op: 'begin', slot: 1, client: 1, duration: 3, reverse: true },
+      { op: 'conflict', slot: 1, client: 1, field: 'retryForMs' },
+      { op: 'advance', elapsed: 2 },
+      { op: 'begin', slot: 3, client: 0, duration: 3, reverse: false },
+      { op: 'renew', slot: 3, client: 1, holder: 'current', duration: 20 },
+      { op: 'complete', slot: 3, client: 0, holder: 'current', value: 2, reverse: false },
+      { op: 'conflict', slot: 3, client: 1, field: 'retryForMs' },
+      { op: 'reopen', client: 1 },
+    ];
+    run(admissionBoundary.map(action => new ContractCommand(action)));
     fc.assert(fc.property(fc.commands(commands, { maxCommands: 100, size: 'max' }), history => {
       run(history);
     }), {
@@ -290,6 +334,7 @@ for (const adapter of ['memory', 'sqlite'] as const) {
       'complete:at-expiry', 'renew:nonshortening', 'renew:extended', 'renew:at-expiry', 'settle:expired-running',
       'renew:true', 'renew:false', 'settle:settled', 'settle:replayed', 'settle:conflict', 'settle:not_indeterminate',
       'conflict', 'abort', 'reopen:running', 'reopen:uncertain', 'reopen:finished',
+      'begin:busy-after-admission', 'begin:window-elapsed', 'complete:after-admission', 'renew:after-admission', 'conflict:retry-window',
     ]) assert.ok(observed.has(outcome), `Histories did not exercise ${outcome}`);
   });
 }

@@ -6,7 +6,8 @@ TypeScript, SQLite, no runtime dependencies. Requires Node.js 24.15 or later.
 The hard case is a tool that **finishes its external action but loses the response**.
 A checkpoint cannot tell you whether that action happened. This library records
 intent before execution, coordinates leases, and makes uncertainty an explicit
-result. Automatic recovery requires a downstream idempotency contract.
+result. Automatic recovery requires a downstream idempotency contract and an
+explicit, finite retry admission window.
 
 ## Try the failure
 
@@ -26,7 +27,7 @@ ledger, then starts another process to recover. It compares five approaches:
 | Retry without a journal | Repeats the effect |
 | Completion checkpoint | Repeats the effect |
 | Downstream idempotency alone | Retrieves the original receipt through another call |
-| Journal + downstream idempotency | Retrieves the original receipt |
+| Journal + downstream idempotency | Retrieves the original receipt while retry admission remains open |
 | Journal + manual recovery | Stops with `indeterminate` |
 
 Downstream idempotency prevents duplicate effects in both idempotent strategies.
@@ -71,6 +72,7 @@ const intent = {
   tool: 'append',
   input: { units: 7 },
   recovery: 'idempotent' as const,
+  retryForMs: 60_000, // fixed from first acquisition; choose for your downstream contract
 };
 
 const begun = journal.begin(intent, 30_000);
@@ -92,27 +94,38 @@ store.close();
 ```
 
 The API example illustrates an integration; `downstream` is not supplied by this
-package. The clone-and-run demo above is self-contained. v0.1 is distributed as
+package. The clone-and-run demo above is self-contained. v0.2 is distributed as
 source and a release archive; no npm registry publication is assumed.
 
 `begin` binds a scope/key to the tool, canonical input and recovery policy.
-Changing any of those under the same key is a conflict. `complete` fences stale
+Changing any of those or a known retry window under the same key is a conflict. `complete` fences stale
 executors; repeating the same completion is harmless. `renew` extends an active
 lease. `settle` records an independently verified receipt for an indeterminate
 action, **after the caller has stopped old executors**.
+
+For idempotent operations, `retryForMs` is required. The first acquisition fixes
+`retryStartBefore`; retries, renewals and restarts cannot extend it. Once admission
+has closed, an expired pending operation becomes `indeterminate`. An active lease
+can still record its receipt, and a completed receipt remains replayable. Manual
+operations have no retry window. See [retry admission and migration](docs/retry-admission.md).
+
+The cutoff governs journal authorization, not arrival at the downstream service.
+An executor paused before sending, or a delayed request, can still arrive after a
+provider deletes its key. Client timeouts do not establish server-side cancellation.
 
 ## Guarantees and limits
 
 - SQLite transactions serialize claims from processes sharing one local database.
 - Completed results are replayed without another tool invocation by a cooperating caller.
 - An expired manual-recovery action cannot be automatically acquired again.
+- An idempotent action cannot be reacquired at or after its fixed admission cutoff.
 - Lease generations fence journal writes. They do **not** fence an external service.
 - A caller can violate the protocol by executing without a lease, reusing a key
   for another logical action, or falsely declaring the downstream idempotent.
 - No cross-service exactly-once guarantee. No database GC, distributed clock,
   scheduler, authentication, model SDK or live trading integration.
 - Node's built-in SQLite API is experimental in Node 24; the adapter is synchronous.
-  This is a v0.1 reference implementation, not a production SLA.
+  This is a v0.2 reference implementation, not a production SLA.
 
 Read the [failure contract](docs/contract.md) before integrating.
 
@@ -132,7 +145,7 @@ npm run benchmark       # 100 controlled cases; writes artifacts/crash-matrix.js
 npm pack               # compiled library + docs; no fixtures or local databases
 ```
 
-The targeted mutation check removes seven safeguards, one at a time, and requires
+The targeted mutation check removes eight safeguards, one at a time, and requires
 an assertion failure for each. It is not a whole-project mutation score. The package
 check installs the real archive offline in a fresh project, exercises SQLite reopen
 through the public exports, and compiles a TypeScript consumer. CI runs on Linux,
