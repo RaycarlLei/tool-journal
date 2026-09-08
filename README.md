@@ -52,6 +52,12 @@ process; HTTP tests reopen stores normally, while the separate process tests
 exercise forced termination. Network deadlines do not include synchronous
 SQLite lock waits.
 
+The [LangGraph integration](integrations/langgraph) uses a real `StateGraph` and
+the official SQLite checkpointer. Its process-kill tests cover a failed HTTP node
+and the gap between journal completion and the next graph checkpoint. The
+framework has its own pinned dependencies; the graph imports the installed
+library archive through the public API. No model key or external service is needed.
+
 ## Use the journal
 
 ```ts
@@ -131,6 +137,8 @@ an assertion failure for each. It is not a whole-project mutation score. The pac
 check installs the real archive offline in a fresh project, exercises SQLite reopen
 through the public exports, and compiles a TypeScript consumer. CI runs on Linux,
 Windows and macOS with the minimum supported Node 24 release and Node 26.
+The same matrix installs and tests the LangGraph example, including its native
+SQLite checkpointer, separately from the dependency-free library.
 
 ## Project scope
 
