@@ -9,6 +9,16 @@ export type Workload = 'execute' | 'replay';
 export interface Failure { code: string; sqliteCode: number | null }
 export interface Sample { sequence: number; elapsedMs: number; outcome: string; error: Failure | null }
 export interface Cpu { user: number; system: number }
+export const runtimeLimits = { workerMs: 90_000, fixtureMs: 240_000 } as const;
+
+class RuntimeDeadlineError extends Error {
+  readonly code: string;
+  constructor(scope: 'worker' | 'fixture') {
+    super(`Runtime ${scope} deadline exceeded`);
+    this.code = scope === 'worker' ? 'ERR_RUNTIME_WORKER_DEADLINE' : 'ERR_RUNTIME_FIXTURE_DEADLINE';
+  }
+}
+
 export type Configuration =
   | { kind: 'configure'; role: 'batch'; database: string; workload: Workload; worker: number; samples: number; warmup: number }
   | { kind: 'configure'; role: 'holder'; database: string; holdMs: number };
@@ -55,10 +65,10 @@ export class RuntimeChild {
   private ended = false;
   readonly closed: Promise<void>;
 
-  constructor(arguments_: string[] = [fileURLToPath(new URL('./runtime-worker.js', import.meta.url))], timeoutMs = 25_000) {
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000) throw new TypeError('Invalid worker deadline');
+  constructor(arguments_: string[] = [fileURLToPath(new URL('./runtime-worker.js', import.meta.url))], timeoutMs: number = runtimeLimits.workerMs) {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new TypeError('Invalid worker deadline');
     this.child = spawn(process.execPath, arguments_, { stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
-    const deadline = setTimeout(() => this.fail(new Error('Runtime worker deadline exceeded')), timeoutMs);
+    const deadline = setTimeout(() => this.fail(new RuntimeDeadlineError('worker')), timeoutMs);
     this.child.on('error', () => this.fail(new Error('Runtime worker could not start')));
     this.child.on('message', raw => {
       const value = raw as Reply;
@@ -111,8 +121,11 @@ export class RuntimeChild {
     await this.closed;
     if (this.failure) throw this.failure;
   }
-  async stop(): Promise<void> {
-    if (!this.ended) this.child.kill('SIGKILL');
+  async stop(error?: Error): Promise<void> {
+    if (!this.ended) {
+      if (error) this.fail(error);
+      else this.child.kill('SIGKILL');
+    }
     await this.closed;
   }
 }
@@ -122,13 +135,13 @@ export class RuntimeFixture {
   readonly directory = realpathSync(mkdtempSync(join(this.root, 'journal-runtime-')));
   private readonly workers: RuntimeChild[] = [];
   private readonly deadline: NodeJS.Timeout;
-  private readonly expiresAt = performance.now() + 60_000;
+  private readonly expiresAt = performance.now() + runtimeLimits.fixtureMs;
   private expired = false;
   constructor() {
     this.deadline = setTimeout(() => {
       this.expired = true;
-      for (const worker of this.workers) void worker.stop();
-    }, 60_000);
+      for (const worker of this.workers) void worker.stop(new RuntimeDeadlineError('fixture'));
+    }, runtimeLimits.fixtureMs);
   }
   worker(arguments_?: string[], timeoutMs?: number): RuntimeChild {
     this.checkDeadline();
@@ -137,7 +150,7 @@ export class RuntimeFixture {
     return child;
   }
   checkDeadline(): void {
-    if (this.expired || performance.now() >= this.expiresAt) throw new Error('Runtime fixture deadline exceeded');
+    if (this.expired || performance.now() >= this.expiresAt) throw new RuntimeDeadlineError('fixture');
   }
   async close(): Promise<void> {
     clearTimeout(this.deadline);

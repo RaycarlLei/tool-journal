@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { RuntimeChild, RuntimeFixture } from '../benchmarks/runtime-process.js';
+import { RuntimeChild, RuntimeFixture, failure } from '../benchmarks/runtime-process.js';
 import { runBatch, runHeldLock } from '../benchmarks/runtime.js';
 
 test('runtime batch reports measured requests separately from warmup across real workers', async () => {
@@ -75,7 +75,12 @@ test('malformed worker failures reject through cleanup without an uncaught IPC e
 
 test('a silent worker is killed at its deadline before the waiter rejects', async () => {
   const worker = new RuntimeChild(['-e', 'process.on("message", () => {});'], 200);
-  await assert.rejects(worker.receive('ready'), /deadline/);
+  await assert.rejects(worker.receive('ready'), error => {
+    assert.ok(error instanceof Error);
+    assert.match(error.message, /deadline/);
+    assert.deepEqual(failure(error), { code: 'ERR_RUNTIME_WORKER_DEADLINE', sqliteCode: null });
+    return true;
+  });
   await worker.closed;
   await worker.stop();
 });

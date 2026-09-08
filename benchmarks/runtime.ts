@@ -8,7 +8,7 @@ import { performance } from 'node:perf_hooks';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { Journal, SqliteStore, type Intent } from '../src/index.js';
-import { RuntimeFixture, failure, fileBytes, milliseconds, statistics, type Failure, type Workload } from './runtime-process.js';
+import { RuntimeFixture, failure, fileBytes, milliseconds, statistics, runtimeLimits, type Failure, type Workload } from './runtime-process.js';
 
 const value = (key: string): Intent => ({ scope: 'runtime-benchmark', key, tool: 'synthetic-append', input: { units: 7 }, recovery: 'idempotent', retryForMs: 120_000 });
 function seed(journal: Journal): void {
@@ -155,7 +155,7 @@ export async function runtimeBenchmark(repository: string) {
         batch: 'Parent start broadcast to all replies, including IPC; fixed aggregate work across process counts.',
         cpu: 'process.cpuUsage microseconds per measured batch/call, summed across execution processes.',
         quantiles: 'Nearest rank: ceil(p*n), no interpolation or removal of error samples.' },
-      limits: { workerMs: 25_000, fixtureMs: 60_000 }, elapsedMs: milliseconds(performance.now() - started),
+      limits: runtimeLimits, elapsedMs: milliseconds(performance.now() - started),
       batches, locks: { idleTimers, idleTimerMs: statistics(idleTimers), samples: locked,
         groups: ['replay', 'begin'].flatMap(target => [250, 6_000].map(holdMs => {
           const samples = locked.filter(sample => sample.target === target && sample.requestedHoldMs === holdMs);

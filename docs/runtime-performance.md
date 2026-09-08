@@ -56,9 +56,9 @@ holds its reservation. The new-key target preserves the write-contention control
 After release, the caller verifies that the connection can still replay.
 
 The configured SQLite busy timeout is **5,000 ms, not a strict API wall-clock
-upper bound**. A v0.2.0 Windows pilot observed about 5.5 seconds before SQLITE_BUSY.
-Scheduling, timer granularity and SQLite's waiting behavior can affect elapsed
-time; this pilot did not separate those contributions. A timeout says the journal
+upper bound**. Scheduling, timer granularity and SQLite's waiting behavior can
+affect elapsed time; the benchmark does not separate those contributions. Each
+report retains its observed timing and environment. A timeout says the journal
 operation failed to obtain the lock, not that unrelated remote work was canceled.
 
 Journal calls are synchronous, including completed replay. A read fast path can
@@ -70,13 +70,18 @@ define queue limits and failure handling there. Isolation can improve responsive
 it does not create additional SQLite write concurrency or cancel in-flight work.
 
 There is only one long-hold sample per target. For n=1, p50/p95/p99/max are the same
-observation, not estimates of rare-event probability. The default run usually
-takes tens of seconds, largely spent in the two six-second holds. Each child has
-a 25-second deadline; the fixture has a 60-second cleanup deadline. These timers
-also need an event-loop turn and cannot interrupt a synchronous native call in
-the parent. On failure, children are killed and their process/IPC handles are
-awaited before deleting the verified temporary directory. There is no early
-successful exit when a child fails or stops responding.
+observation, not estimates of rare-event probability. The default run includes
+two six-second holds; storage and scheduling can extend it substantially. Each child has
+a 90-second health deadline; the full fixture has a 240-second deadline. The
+worker helper accepts test deadlines up to 120 seconds. These bounds allow slow
+CI machines to perform the original FULL-durability workload; they bound a stalled run
+and are not performance pass thresholds. The CI job retains its 10-minute limit.
+Worker and fixture expiry report `ERR_RUNTIME_WORKER_DEADLINE` and
+`ERR_RUNTIME_FIXTURE_DEADLINE`, respectively, without serializing local paths.
+These timers also need an event-loop turn and cannot interrupt a synchronous
+native call in the parent. On failure, children are killed and their process/IPC
+handles are awaited before deleting the verified temporary directory. There is
+no early successful exit when a child fails or stops responding.
 
 ## Storage, provenance and interpretation
 
