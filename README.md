@@ -61,6 +61,18 @@ library archive through the public API. No model key or external service is need
 
 ## Use the journal
 
+Download the `.tgz` from the [v0.3.0 release](https://github.com/RaycarlLei/tool-journal/releases/tag/v0.3.0)
+and install it in your application:
+
+```sh
+npm install ./raycarllei-tool-journal-0.3.0.tgz
+```
+
+The archive contains compiled JavaScript and TypeScript declarations. To build it
+yourself, run `npm pack` in this checkout. The package has no install-time hooks or
+runtime dependencies; the crash experiments and framework example stay in the
+source repository.
+
 ```ts
 import { Journal, SqliteStore } from '@raycarllei/tool-journal';
 
@@ -94,7 +106,7 @@ store.close();
 ```
 
 The API example illustrates an integration; `downstream` is not supplied by this
-package. The clone-and-run demo above is self-contained. v0.2 is distributed as
+package. The clone-and-run demo above is self-contained. v0.3 is distributed as
 source and a release archive; no npm registry publication is assumed.
 
 `begin` binds a scope/key to the tool, canonical input and recovery policy.
@@ -113,6 +125,11 @@ The cutoff governs journal authorization, not arrival at the downstream service.
 An executor paused before sending, or a delayed request, can still arrive after a
 provider deletes its key. Client timeouts do not establish server-side cancellation.
 
+In the built-in stores, `begin` can replay a committed receipt through a validated
+read snapshot without waiting for a SQLite writer lock. New execution still needs
+the write transaction; an absent or pending snapshot never grants a lease. See the
+[operating guide](docs/operations.md) and [runtime measurements](docs/runtime-performance.md).
+
 ## Guarantees and limits
 
 - SQLite transactions serialize claims from processes sharing one local database.
@@ -125,7 +142,7 @@ provider deletes its key. Client timeouts do not establish server-side cancellat
 - No cross-service exactly-once guarantee. No database GC, distributed clock,
   scheduler, authentication, model SDK or live trading integration.
 - Node's built-in SQLite API is experimental in Node 24; the adapter is synchronous.
-  This is a v0.2 reference implementation, not a production SLA.
+  This is a v0.3 reference implementation, not a production SLA.
 
 Read the [failure contract](docs/contract.md) before integrating.
 
@@ -142,10 +159,11 @@ Read the [failure contract](docs/contract.md) before integrating.
 ```sh
 npm run check           # tests, targeted mutations, public-tree and package checks
 npm run benchmark       # 100 controlled cases; writes artifacts/crash-matrix.json
+npm run benchmark:runtime # operation latency, lock waits and event-loop probes
 npm pack               # compiled library + docs; no fixtures or local databases
 ```
 
-The targeted mutation check removes eight safeguards, one at a time, and requires
+The targeted mutation check removes nine safeguards, one at a time, and requires
 an assertion failure for each. It is not a whole-project mutation score. The package
 check installs the real archive offline in a fresh project, exercises SQLite reopen
 through the public exports, and compiles a TypeScript consumer. CI runs on Linux,

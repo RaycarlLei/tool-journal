@@ -77,10 +77,17 @@ for indeterminate actions in v0.2.
 
 ## Storage and clock assumptions
 
-The SQLite adapter uses WAL, FULL synchronization and `BEGIN IMMEDIATE`. The
-linearization point is a successful transaction commit. Transactions contain no
-network work. All accesses, including replay, take the writer lock for simplicity;
-this is not a high-throughput adapter. Busy lock waits are bounded to five seconds.
+The SQLite adapter uses WAL, FULL synchronization and `BEGIN IMMEDIATE` for
+execution grants and changes. Their linearization point is a successful commit.
+Transactions contain no network work. The optional `Store.read` returns one
+validated, committed snapshot without taking a writer lock. `begin` uses it only
+for completed receipts and associated conflicts; that result linearizes at the
+read. All other states are re-read inside the write transaction before deciding.
+Custom adapters without `read` retain the transactional path.
+
+All operations are synchronous. SQLite's busy timeout is configured to 5,000 ms;
+this is not a strict wall-clock deadline for the API call. Reads can still incur
+storage work or fail. See [operation and recovery guidance](operations.md).
 
 Use one database on local disk, with filesystem locking supported by SQLite.
 Network filesystems and replicated database copies are unsupported. The memory
@@ -88,6 +95,11 @@ adapter has neither process coordination nor crash durability. Records with inva
 field types, unknown fields, impossible state combinations or noncanonical results
 throw; they never become a fresh journal. This validates structure, not authenticity:
 someone who can rewrite the database can also forge a structurally valid receipt.
+Size and storage-type guards execute in the same SQLite SELECT that returns each
+record. They bound values passed into JavaScript even when a damaged row is much
+larger. The storage guard permits twice the UTF-8 record budget to accommodate
+UTF-16 databases; the decoder then enforces the exact UTF-8 bound. This is not a
+global memory limit on SQLite, the process or a caller's already allocated input.
 An existing journal with a missing table, missing schema version or multiple
 version rows is rejected. Opening it does not reconstruct lost state as an empty
 journal. A new database path still creates a new journal; protect the database
@@ -111,7 +123,8 @@ extend real elapsed admission time; the journal is not a trusted clock service.
 Once an operation becomes indeterminate it stays so even if the clock moves back.
 Use a stable time source and account for clock error in the integration's contract.
 
-Schema v2 retains v1 identities and fingerprints. On opening a v1 SQLite journal,
+v0.3 keeps schema v2 and needs no migration from v0.2. Schema v2 retains v1
+identities and fingerprints. On opening a v1 SQLite journal,
 the adapter validates and re-encodes records using bounded keyset iteration, then
 updates schema metadata in the same transaction. New time fields are null, never inferred from `leaseUntil` or
 reset to the current time. Completed records replay. Pending legacy idempotent
@@ -125,7 +138,7 @@ Downgrading a migrated database is unsupported. See [upgrade steps](retry-admiss
 
 Input fingerprints are retained instead of raw tool input. Results are stored as
 plaintext JSON. Hashes can reveal low-entropy input through guessing. Protect the
-database and choose result contents accordingly. v0.2 performs no authentication,
+database and choose result contents accordingly. The package performs no authentication,
 encryption, retention cleanup or secure erasure.
 
 Canonical JSON sorts object keys, preserves array order and rejects unsupported

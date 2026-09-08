@@ -3,6 +3,9 @@ import { types } from 'node:util';
 
 export type Recovery = 'idempotent' | 'manual';
 
+// A canonical receipt is nested as a JSON string, which can double its byte size.
+export const MAX_RECORD_BYTES = 2 * MAX_JSON_BYTES + 4_096;
+
 export interface Entry {
   version: 2;
   id: string;
@@ -22,9 +25,7 @@ export interface Entry {
 
 /** Invalid persisted state must stop execution, never be treated as an empty journal. */
 export function decodeEntry(raw: string, id: string, version: 1 | 2 = 2): Entry {
-  // A canonical result is nested as a JSON string, which can double its byte size.
-  const limit = 2 * MAX_JSON_BYTES + 4_096;
-  if (raw.length > limit || Buffer.byteLength(raw) > limit) throw new Error('Corrupt journal entry: oversized record');
+  if (raw.length > MAX_RECORD_BYTES || Buffer.byteLength(raw) > MAX_RECORD_BYTES) throw new Error('Corrupt journal entry: oversized record');
   let v: unknown;
   try { v = JSON.parse(raw); }
   catch (cause) { throw new Error('Corrupt journal entry: invalid JSON', { cause }); }
@@ -88,6 +89,8 @@ export function validateChange<T>(change: Change<T>): Change<T> {
   return change;
 }
 export interface Store {
+  /** Optional atomic, validated snapshot. Never authorizes a write; reject nested access. */
+  read?(id: string): Entry | undefined;
   /** Run a synchronous read/modify/write atomically. Throwing rolls back; nested transactions are rejected. */
   transact<T>(id: string, change: (entry: Entry | undefined) => Change<T>): T;
 }

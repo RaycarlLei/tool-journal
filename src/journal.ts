@@ -44,6 +44,14 @@ function owns(entry: Entry, lease: Lease): boolean {
   return entry.id === lease.id && entry.epoch === lease.epoch && entry.executor === lease.executor;
 }
 
+function observedOutcome(entry: Entry, fingerprint: string, retryForMs: number | null): Begin | undefined {
+  if (entry.fingerprint !== fingerprint) return { kind: 'conflict' };
+  if (entry.retryForMs !== null && entry.retryForMs !== retryForMs) return { kind: 'conflict' };
+  if (entry.state === 'completed') return { kind: 'replay', result: JSON.parse(entry.result!) as Json };
+  if (entry.state === 'indeterminate') return { kind: 'indeterminate' };
+  return undefined;
+}
+
 export class Journal {
   constructor(private readonly store: Store, private readonly clock: () => number = Date.now) {}
 
@@ -60,15 +68,20 @@ export class Journal {
 
   begin(intent: Intent, leaseMs = 30_000): Begin {
     const { id, fingerprint, recovery, retryForMs } = identity(intent);
+    const snapshot = this.store.read?.(id);
+    if (snapshot?.state === 'completed') {
+      // A committed receipt authorizes no new execution. Its read can linearize
+      // replay without waiting for an unrelated writer. Preserve argument checks.
+      this.deadline(this.now(), leaseMs);
+      return observedOutcome(snapshot, fingerprint, retryForMs)!;
+    }
     return this.store.transact<Begin>(id, entry => {
       // Read time after acquiring the storage lock; lock contention may outlast a lease.
       const now = this.now();
       const leaseUntil = this.deadline(now, leaseMs);
       if (entry) {
-        if (entry.fingerprint !== fingerprint) return { value: { kind: 'conflict' } };
-        if (entry.retryForMs !== null && entry.retryForMs !== retryForMs) return { value: { kind: 'conflict' } };
-        if (entry.state === 'completed') return { value: { kind: 'replay', result: JSON.parse(entry.result!) as Json } };
-        if (entry.state === 'indeterminate') return { value: { kind: 'indeterminate' } };
+        const observed = observedOutcome(entry, fingerprint, retryForMs);
+        if (observed) return { value: observed };
         if (entry.leaseUntil > now) return { value: { kind: 'busy', leaseUntil: entry.leaseUntil } };
         if (entry.recovery === 'manual' || entry.retryStartBefore === null || now >= entry.retryStartBefore) return {
           value: { kind: 'indeterminate' }, next: { ...entry, state: 'indeterminate' },

@@ -1,6 +1,6 @@
 {
   "name": "@raycarllei/tool-journal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Durable tool execution with lease fencing, explicit uncertainty, and reproducible crash tests.",
   "license": "MIT",
   "type": "module",
@@ -14,6 +14,7 @@
     "demo": "npm run build && node dist/examples/crash-recovery.js",
     "demo:http": "npm run build && node dist/examples/http-recovery.js",
     "benchmark": "npm run build && node dist/benchmarks/run.js",
+    "benchmark:runtime": "npm run build && node dist/benchmarks/runtime.js",
     "test:mutations": "npm run build && node scripts/mutations.mjs",
     "check:public": "node scripts/check-public.mjs",
     "check:package": "npm run build && node scripts/check-package.mjs",

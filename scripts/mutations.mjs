@@ -7,6 +7,7 @@ const file = new URL('../dist/src/journal.js', import.meta.url);
 const original = readFileSync(file, 'utf8');
 const faults = [
   ['ignore changed input', 'entry.fingerprint !== fingerprint', 'false'],
+  ['use a nonterminal snapshot as a final result', "snapshot?.state === 'completed'", 'snapshot !== undefined'],
   ['accept stale execution epochs', 'entry.epoch === lease.epoch && entry.executor === lease.executor', 'true'],
   ['retry without recovery authority', "entry.recovery === 'manual' || entry.retryStartBefore === null || now >= entry.retryStartBefore", 'false'],
   ['admit a retry at or after its cutoff', 'now >= entry.retryStartBefore', 'false'],
@@ -15,7 +16,7 @@ const faults = [
   ['shorten a renewed lease', 'Math.max(entry.leaseUntil, deadline)', 'deadline'],
   ['settle before uncertainty', "entry.state !== 'indeterminate'", 'false'],
 ];
-const tests = ['--test', 'dist/tests/journal.test.js', 'dist/tests/model.test.js', 'dist/tests/integrity.test.js', 'dist/tests/retry-window.test.js'];
+const tests = ['--test', 'dist/tests/journal.test.js', 'dist/tests/model.test.js', 'dist/tests/integrity.test.js', 'dist/tests/retry-window.test.js', 'dist/tests/readonly-replay.test.js'];
 const baseline = spawnSync(process.execPath, tests, { encoding: 'utf8', windowsHide: true, timeout: 30_000 });
 if (baseline.status !== 0) throw new Error('Baseline tests must pass before mutation checks');
 let failed = false;
