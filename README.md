@@ -61,17 +61,21 @@ library archive through the public API. No model key or external service is need
 
 ## Use the journal
 
-Download the `.tgz` from the [v0.3.0 release](https://github.com/RaycarlLei/tool-journal/releases/tag/v0.3.0)
+Download the `.tgz` from the [v0.3.1 release](https://github.com/RaycarlLei/tool-journal/releases/tag/v0.3.1)
 and install it in your application:
 
 ```sh
-npm install ./raycarllei-tool-journal-0.3.0.tgz
+npm install ./raycarllei-tool-journal-0.3.1.tgz
 ```
 
 The archive contains compiled JavaScript and TypeScript declarations. To build it
 yourself, run `npm pack` in this checkout. The package has no install-time hooks or
 runtime dependencies; the crash experiments and framework example stay in the
 source repository.
+
+CI also saves the exact archive that passed the offline consumer check, with its
+source identity and checksums. See the [release guide](docs/releases.md) to build
+and inspect a candidate locally.
 
 ```ts
 import { Journal, SqliteStore } from '@raycarllei/tool-journal';

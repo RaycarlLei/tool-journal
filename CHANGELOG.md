@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1
+
+- Refuse automatic initialization when both journal tables are absent but SQLite
+  retains schema history or other schema objects. Missing tables in an existing
+  database must not turn completed effects into fresh execution grants.
+- Reject stale compiled modules in package checks. Candidate packages contain
+  exactly the source-derived library outputs and public documentation.
+- Generate the tested package, source/build record and checksums after the full
+  CI matrix. Document local reproduction and release promotion without granting
+  the workflow publication credentials.
+
 ## 0.3.0
 
 - Replay completed receipts through an optional validated Store snapshot. SQLite
