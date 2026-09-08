@@ -1,6 +1,6 @@
 {
   "name": "@raycarllei/tool-journal",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Durable tool execution with lease fencing, explicit uncertainty, and reproducible crash tests.",
   "license": "MIT",
   "type": "module",

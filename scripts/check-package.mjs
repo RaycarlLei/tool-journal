@@ -42,7 +42,7 @@ try {
   writeFileSync(join(directory, 'consumer.mjs'), `
 import assert from 'node:assert/strict';
 import { Journal, SqliteStore } from '@raycarllei/tool-journal';
-const intent = { scope: 'package-check', key: 'once', tool: 'append', input: { units: 7 }, recovery: 'idempotent' };
+const intent = { scope: 'package-check', key: 'once', tool: 'append', input: { units: 7 }, recovery: 'idempotent', retryForMs: 60000 };
 let store = new SqliteStore('journal.sqlite');
 const journal = new Journal(store, () => 100);
 const begun = journal.begin(intent);
@@ -60,6 +60,13 @@ const intent: Intent = { scope: 'types', key: 'one', tool: 'append', input: null
 const journal = new Journal(new MemoryStore());
 const result: Begin = journal.begin(intent);
 if (result.kind === 'acquired') journal.complete(result.lease, { receipt: 1 });
+const retryable: Intent = { ...intent, recovery: 'idempotent', retryForMs: 60000 };
+const admitted = journal.begin(retryable);
+if (admitted.kind === 'acquired') { const cutoff: number | null = admitted.retryStartBefore; void cutoff; }
+// @ts-expect-error An idempotent operation requires a finite admission window.
+const missingWindow: Intent = { scope: 'types', key: 'two', tool: 'append', input: null, recovery: 'idempotent' };
+// @ts-expect-error A manual operation cannot acquire a retry policy accidentally.
+const manualWindow: Intent = { scope: 'types', key: 'three', tool: 'append', input: null, recovery: 'manual', retryForMs: 60000 };
 `);
   run([join(root, 'node_modules/typescript/bin/tsc'), '--noEmit', '--strict', '--module', 'NodeNext',
     '--moduleResolution', 'NodeNext', '--target', 'ES2023', 'consumer.mts']);

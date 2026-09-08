@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { Journal, SqliteStore, type Json } from '../../src/index.js';
+import { Journal, SqliteStore, type Intent, type Json } from '../../src/index.js';
 import { canonical, digest } from '../../src/json.js';
 
 const [journalPath, ledgerPath, strategy, phase, time] = process.argv.slice(2) as [string, string, string, string, string];
@@ -41,7 +41,8 @@ async function pause(at: string): Promise<void> {
 const usesJournal = strategy.startsWith('journal') || strategy === 'claim';
 const store = usesJournal ? new SqliteStore(journalPath) : undefined;
 const journal = store ? new Journal(store, () => now) : undefined;
-const intent = { scope: 'synthetic-ledger', key: 'append-7', tool: 'append', input: { units: 7 }, recovery: strategy === 'journal-manual' ? 'manual' as const : 'idempotent' as const };
+const intent: Intent = { scope: 'synthetic-ledger', key: 'append-7', tool: 'append', input: { units: 7 },
+  ...(strategy === 'journal-manual' ? { recovery: 'manual' as const } : { recovery: 'idempotent' as const, retryForMs: 1_000 }) };
 // Identical downstream identity in both deduplicating strategies. Keep this check
 // separate from the journal so the baseline does not acquire or read journal state.
 const downstreamKey = digest(canonical([intent.scope, intent.key]));
