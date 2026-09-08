@@ -101,9 +101,15 @@ larger. The storage guard permits twice the UTF-8 record budget to accommodate
 UTF-16 databases; the decoder then enforces the exact UTF-8 bound. This is not a
 global memory limit on SQLite, the process or a caller's already allocated input.
 An existing journal with a missing table, missing schema version or multiple
-version rows is rejected. Opening it does not reconstruct lost state as an empty
-journal. A new database path still creates a new journal; protect the database
-file and restore a consistent backup if it is lost.
+version rows is rejected. When both journal tables are absent, initialization
+requires no schema objects and SQLite's `schema_version` to be zero. These checks
+run inside the opening transaction: a database retaining schema history is not
+silently rebuilt as an empty journal, and an unrelated schema is not populated
+with journal tables. The counter is not authentication and can be reset outside
+the library. A missing path or a replacement empty file still creates a new
+journal; neither lost storage nor an overly old backup can be identified from
+these checks. Protect the database and reconcile a restored backup's missing
+interval before resuming execution.
 
 Both adapters reject nested transactions and asynchronous callbacks. The callback
 must return a `Change` synchronously. Rejection prevents a returned change from being

@@ -69,6 +69,16 @@ a new journal. A typo, deleted volume or empty mount must be treated as a deploy
 failure when an existing journal was expected. The package cannot infer whether a
 new path is an intended first launch or accidental loss of the old file.
 
+If both journal tables are absent, initialization requires an empty schema and
+SQLite's `schema_version` counter to be zero. A database with unrelated schema
+objects or retained schema history is rejected without rebuilding journal tables
+or granting a new lease. Existing schema contents and user rows are preserved;
+opening still configures SQLite and is not a forensic, read-only operation.
+Do not delete schema objects or reset the counter to get past this rejection.
+The counter is not authentication: an external reset, replacement with an empty
+file, or a consistent but overly old backup can hide the history that is missing.
+Keep executors stopped and follow the reconciliation procedure above.
+
 ## Limits of the evidence
 
 Process termination, SQLite reopen, synthetic failures and CI checks exercise

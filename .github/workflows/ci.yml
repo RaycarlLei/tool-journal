@@ -47,3 +47,23 @@ jobs:
           path: artifacts/runtime-cost.json
           if-no-files-found: error
           retention-days: 30
+  package:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.15.0'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run release:candidate
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-candidate-${{ github.sha }}
+          path: artifacts/package-candidate-*/*
+          if-no-files-found: error
+          retention-days: 30

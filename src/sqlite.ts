@@ -29,6 +29,13 @@ export class SqliteStore implements Store {
       this.db.exec('BEGIN IMMEDIATE');
       const tables = this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('journal_meta', 'tool_journal')").all();
       if (tables.length === 0) {
+        // Missing both tables is not proof of a first launch. Refuse to forget
+        // a used schema or add journal state to an unrelated application's DB.
+        const schemaObject = this.db.prepare('SELECT 1 AS present FROM sqlite_master LIMIT 1').get();
+        const schemaVersion = this.db.prepare('PRAGMA schema_version').get()!.schema_version;
+        if (schemaObject || schemaVersion !== 0) {
+          throw new Error('Unsupported journal schema: database is not pristine');
+        }
         this.db.exec('CREATE TABLE journal_meta (version INTEGER NOT NULL) STRICT; INSERT INTO journal_meta VALUES (2); CREATE TABLE tool_journal (id TEXT PRIMARY KEY, entry TEXT NOT NULL) STRICT;');
       } else if (tables.length !== 2) {
         // Recreating a missing records table would forget completed effects.

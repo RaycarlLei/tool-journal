@@ -13,6 +13,9 @@ with an explicit rendezvous is more useful than a timing-dependent sleep.
 type-checks its public API. The model tests print fast-check's seed and shrink path
 on failure; include both when reporting a sequence-dependent bug.
 
+The [release guide](docs/releases.md) describes the candidate package produced by
+CI and how to reproduce its offline consumer check and source/checksum record.
+
 Keep changes bounded. New storage adapters need the same conflict, fencing,
 reopen and crash tests as SQLite. The present Store contract is synchronous;
 an asynchronous database needs an API design change, not a cast hiding a Promise.
