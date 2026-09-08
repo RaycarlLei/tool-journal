@@ -19,5 +19,5 @@
     "zod": "4.2.0"
   },
   "overrides": { "better-sqlite3": "12.10.0" },
-  "devDependencies": { "@types/node": "24.10.1", "typescript": "5.9.3" }
+  "devDependencies": { "@types/node": "26.4.1", "typescript": "5.9.3" }
 }
