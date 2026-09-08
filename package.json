@@ -20,5 +20,5 @@
     "check": "npm test && npm run test:mutations && npm run check:public && npm run check:package",
     "prepack": "npm run build"
   },
-  "devDependencies": { "@types/node": "24.10.1", "fast-check": "4.3.0", "typescript": "5.9.3" }
+  "devDependencies": { "@types/node": "24.10.1", "fast-check": "4.9.0", "typescript": "7.0.2" }
 }
