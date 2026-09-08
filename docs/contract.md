@@ -63,8 +63,17 @@ this is not a high-throughput adapter. Busy lock waits are bounded to five secon
 
 Use one database on local disk, with filesystem locking supported by SQLite.
 Network filesystems and replicated database copies are unsupported. The memory
-adapter has neither process coordination nor crash durability. Disk corruption
-and unsupported schema versions throw; they never become a fresh journal.
+adapter has neither process coordination nor crash durability. Records with invalid
+field types, unknown fields, impossible state combinations or noncanonical results
+throw; they never become a fresh journal. This validates structure, not authenticity:
+someone who can rewrite the database can also forge a structurally valid receipt.
+
+Both adapters reject nested transactions and asynchronous callbacks. The callback
+must return a `Change` synchronously. Rejection prevents a returned change from being
+committed; it cannot cancel arbitrary JavaScript side effects in a misused callback.
+If rollback itself fails, SQLite closes that connection and throws an `AggregateError`
+preserving the original failure. Open a fresh adapter only after diagnosing the
+storage failure. A failed completion still means its external effect may have occurred.
 
 Processes use the same host wall clock by default. Large clock jumps affect
 availability and expiry; this is not a distributed lease service. Time is sampled
@@ -78,6 +87,10 @@ database and choose result contents accordingly. v0.1 performs no authentication
 encryption, retention cleanup or secure erasure.
 
 Canonical JSON sorts object keys, preserves array order and rejects unsupported
-values, accessors, sparse arrays and cycles. Negative zero normalizes to zero.
-Depth is limited to 64 and encoded size to 1 MiB. These limits do not make the API
-a sandbox for hostile JavaScript objects or prevent pre-encoding memory pressure.
+values, accessors, proxies, sparse arrays and cycles. Negative zero normalizes to zero.
+Depth is limited to 64 and encoded size to 1 MiB. Encoding stops as the byte budget
+is consumed, including when a small shared object graph would expand exponentially.
+Persisted receipts must meet the same domain and canonical encoding. The outer
+record has a separate size bound because the nested JSON string escapes again.
+These checks do not replace request limits: the caller has already allocated the
+input object, and this synchronous API is not a sandbox for arbitrary JavaScript.
