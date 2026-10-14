@@ -35,13 +35,13 @@ jobs:
         working-directory: integrations/langgraph
       - run: npm run benchmark
       - run: npm run benchmark:runtime
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: crash-matrix-${{ matrix.os }}-node-${{ matrix.node }}
           path: artifacts/crash-matrix.json
           if-no-files-found: error
           retention-days: 30
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: runtime-cost-${{ matrix.os }}-node-${{ matrix.node }}
           path: artifacts/runtime-cost.json
@@ -61,7 +61,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run release:candidate
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-candidate-${{ github.sha }}
           path: artifacts/package-candidate-*/*
